@@ -3,13 +3,12 @@ import re
 import argparse
 import pickle
 import threading
-import queue
-import numpy as np
 from pathlib import Path
+from datetime import datetime
+from impacket.smbconnection import SMBConnection
+from concurrent.futures import ThreadPoolExecutor
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import DBSCAN
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 
 # Global locks for thread safety
 lock = threading.Lock()
@@ -42,34 +41,33 @@ def load_state(filename):
             return pickle.load(f)
     return None
 
-def discover_files(start_path, ignore_inaccessible, discovered, ignore_list):
-    for root, dirs, files in os.walk(start_path):
-        for file in files:
-            file_path = os.path.join(root, file)
-            if ignore_list and any(file.endswith(ign) for ign in ignore_list):
-                verbose_log(f"Ignoring file (ignore list match): {file_path}")
-                continue
-            try:
-                if os.path.islink(file_path):
-                    verbose_log(f"Skipping symlink: {file_path}")
-                    continue
-                size = os.path.getsize(file_path)
-                discovered[file_path] = size
-                verbose_log(f"Discovered file: {file_path} (Size: {size} bytes)")
-            except (PermissionError, FileNotFoundError):
-                if not ignore_inaccessible:
-                    discovered[file_path] = None
-                    verbose_log(f"Inaccessible file: {file_path}")
-            save_state(DISCOVERY_STATE_FILE, discovered)
-    log("Discovery phase completed.")
-
-def scan_file(file_path, patterns, max_file_size_bytes):
+def discover_files(smb_conn, share_name, base_path, discovered, ignore_list):
     try:
-        if os.path.getsize(file_path) > max_file_size_bytes:
+        for root, dirs, files in smb_conn.walk(share_name, base_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if ignore_list and any(file.endswith(ign) for ign in ignore_list):
+                    verbose_log(f"Ignoring file (ignore list match): {file_path}")
+                    continue
+                try:
+                    size = smb_conn.getAttributes(share_name, file_path).getSize()
+                    discovered[file_path] = size
+                    verbose_log(f"Discovered file: {file_path} (Size: {size} bytes)")
+                except Exception as e:
+                    verbose_log(f"Failed to access file: {file_path} - {e}")
+            save_state(DISCOVERY_STATE_FILE, discovered)
+    except Exception as e:
+        log(f"Error during discovery: {e}")
+
+def scan_file(smb_conn, share_name, file_path, patterns, max_file_size_bytes):
+    try:
+        size = smb_conn.getAttributes(share_name, file_path).getSize()
+        if size > max_file_size_bytes:
             verbose_log(f"Skipping large file: {file_path}")
             return None
-        with open(file_path, 'r', errors='ignore') as f:
-            content = f.read()
+
+        with smb_conn.openFile(share_name, file_path, mode='r') as f:
+            content = f.read().decode(errors='ignore')
             matches = [p for p in patterns if re.search(p, content)]
             return matches if matches else None
     except Exception as e:
@@ -87,12 +85,12 @@ def perform_clustering(file_paths):
         clusters.setdefault(label, []).append(file_paths[idx])
     return clusters
 
-def scan_cluster(cluster_files, patterns, max_file_size_bytes, results, dynamic_ignore_list):
+def scan_cluster(smb_conn, share_name, cluster_files, patterns, max_file_size_bytes, results, dynamic_ignore_list):
     sample_files = cluster_files[:15]
     any_matches = False
 
     for file_path in sample_files:
-        matches = scan_file(file_path, patterns, max_file_size_bytes)
+        matches = scan_file(smb_conn, share_name, file_path, patterns, max_file_size_bytes)
         if matches:
             any_matches = True
             break
@@ -103,30 +101,21 @@ def scan_cluster(cluster_files, patterns, max_file_size_bytes, results, dynamic_
         verbose_log(f"Skipping cluster with pattern: {representative_pattern}")
     else:
         for file_path in cluster_files:
-            matches = scan_file(file_path, patterns, max_file_size_bytes)
+            matches = scan_file(smb_conn, share_name, file_path, patterns, max_file_size_bytes)
             if matches:
                 with lock:
-                    results[file_path] = {
-                        'matches': matches,
-                        'size': os.path.getsize(file_path)
-                    }
+                    results[file_path] = {'matches': matches, 'size': smb_conn.getAttributes(share_name, file_path).getSize()}
                     save_state(RESULT_STATE_FILE, results)
-
-def scan_file_directly(file_path, patterns, max_file_size_bytes, results):
-    matches = scan_file(file_path, patterns, max_file_size_bytes)
-    if matches:
-        with lock:
-            results[file_path] = {
-                'matches': matches,
-                'size': os.path.getsize(file_path)
-            }
-            save_state(RESULT_STATE_FILE, results)
 
 def main():
     global VERBOSE
 
-    parser = argparse.ArgumentParser(description="Network File Server Credential Scanner with Optional Clustering")
-    parser.add_argument("path", help="Network path to start scanning")
+    parser = argparse.ArgumentParser(description="SMB Share File Scanner with Impacket Authentication")
+    parser.add_argument("target_ip", help="Target SMB server IP")
+    parser.add_argument("username", help="Username for SMB authentication")
+    parser.add_argument("password", help="Password for SMB authentication")
+    parser.add_argument("domain", help="Domain for SMB authentication")
+    parser.add_argument("share", help="SMB Share name")
     parser.add_argument("--patterns", required=True, help="File containing regex patterns")
     parser.add_argument("--ignore-list", help="File containing patterns to ignore")
     parser.add_argument("--max-size", type=int, default=1, help="Max file size to scan (MB)")
@@ -136,7 +125,6 @@ def main():
 
     args = parser.parse_args()
     VERBOSE = args.verbose
-
     max_file_size_bytes = args.max_size * 1024 * 1024
 
     with open(args.patterns, 'r') as pf:
@@ -148,13 +136,15 @@ def main():
             ignore_list = [line.strip() for line in igf if line.strip()]
 
     dynamic_ignore_list = load_state(DYNAMIC_IGNORE_LIST) or []
-
     discovered = load_state(DISCOVERY_STATE_FILE) or {}
     results = load_state(RESULT_STATE_FILE) or {}
 
+    smb_conn = SMBConnection(args.username, args.password, '', args.target_ip, domain=args.domain)
+    smb_conn.connect(args.target_ip, 445)
+
     if not discovered:
         log("Starting discovery phase...")
-        discover_files(args.path, True, discovered, ignore_list + dynamic_ignore_list)
+        discover_files(smb_conn, args.share, '/', discovered, ignore_list + dynamic_ignore_list)
     else:
         log("Resuming from saved discovery state.")
 
@@ -162,12 +152,13 @@ def main():
         if args.enable_clustering:
             clusters = perform_clustering(list(discovered.keys()))
             for cluster_files in clusters.values():
-                executor.submit(scan_cluster, cluster_files, patterns, max_file_size_bytes, results, dynamic_ignore_list)
+                executor.submit(scan_cluster, smb_conn, args.share, cluster_files, patterns, max_file_size_bytes, results, dynamic_ignore_list)
         else:
             for file_path in discovered.keys():
-                executor.submit(scan_file_directly, file_path, patterns, max_file_size_bytes, results)
+                executor.submit(scan_file, smb_conn, args.share, file_path, patterns, max_file_size_bytes)
 
     save_state(DYNAMIC_IGNORE_LIST, dynamic_ignore_list)
+    smb_conn.close()
 
     log("Scan completed. Results saved.")
 
