@@ -1,9 +1,149 @@
-(?i)apikey[\s:=]+[a-z0-9]{32}
-(?i)secret[\s:=]+[a-z0-9]{40}
-(?i)password[\s:=]+[^\s]+
-(?i)token[\s:=]+[a-z0-9\-_]{20,}
-(?i)aws_access_key_id[\s:=]+[A-Z0-9]{20}
+# -------------------- CLOUD PROVIDERS --------------------
+
+# AWS Access Key
+AKIA[0-9A-Z]{16}
+
+# AWS Secret Key
 (?i)aws_secret_access_key[\s:=]+[A-Za-z0-9/+=]{40}
-(?i)db_password[\s:=]+[^\s]+
-(?i)passphrase[\s:=]+[^\s]+
-(?i)auth_token[\s:=]+[A-Za-z0-9\-_]+
+
+# AWS Session Token
+(?i)aws_session_token[\s:=]+[A-Za-z0-9/+=]{16,}
+
+# AWS Account ID
+\d{12}
+
+# Azure Storage Account Key
+(?i)DefaultEndpointsProtocol=https;AccountName=[a-z0-9]{3,24};AccountKey=[a-zA-Z0-9+/=]{88};EndpointSuffix=core\.windows\.net
+
+# Azure Client Secret
+(?i)azure_client_secret[\s:=]+[a-zA-Z0-9._%+-]{10,}
+
+# Azure Tenant ID
+(?i)azure_tenant_id[\s:=]+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+# Azure Subscription ID
+(?i)azure_subscription_id[\s:=]+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+
+# GCP API Key
+AIza[0-9A-Za-z-_]{35}
+
+# GCP OAuth Access Token
+ya29\.[0-9A-Za-z\-_]+
+
+# GCP Service Account JSON Key
+"private_key": "-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/\s=]+-----END PRIVATE KEY-----"
+
+# -------------------- GAME DEVELOPMENT SERVICES --------------------
+
+# Perforce User Password (p4passwd environment variable)
+(?i)p4passwd[\s:=]+[^\s'"]+
+
+# Perforce Ticket File (p4ticket)
+(?i)p4ticket[\s:=]+[^\s'"]+
+
+# Perforce API Token
+(?i)p4api[_-]?token[\s:=]+[a-zA-Z0-9\-_]{16,40}
+
+# SVN Username and Password
+(?i)(svn|subversion)[\s:=]+[^\s'"]+
+
+# SVN Authentication Header
+(?i)svn_auth[\s:=]+[a-zA-Z0-9:_-]+
+
+# SVN URL (With embedded credentials)
+svn:\/\/[a-zA-Z0-9]+:[a-zA-Z0-9]+@[a-zA-Z0-9\.-]+
+
+# Unity API Key
+(?i)unity[_-]?api[_-]?key[\s:=]+[a-zA-Z0-9\-_]{32,}
+
+# Unity DevOps (Plastic SCM) Access Token
+(?i)unity[_-]?devops[_-]?token[\s:=]+[a-zA-Z0-9\-_]{32,}
+
+# Unreal Engine (Epic Games) API Key
+(?i)epic[_-]?api[_-]?key[\s:=]+[a-zA-Z0-9\-_]{32,}
+
+# Discord Bot Token
+mfa\.[\w-]{84}
+
+# Discord Client Secret
+(?i)discord[_-]?client[_-]?secret[\s:=]+[a-zA-Z0-9]{32,}
+
+# PlayFab API Key
+(?i)playfab[_-]?api[_-]?key[\s:=]+[a-zA-Z0-9\-_]{32,}
+
+# Firebase API Key
+AIza[0-9A-Za-z-_]{35}
+
+# Firebase Database URL
+https:\/\/[a-z0-9-]+\.firebaseio\.com
+
+# Steam API Key
+(?i)steam[_-]?api[_-]?key[\s:=]+[A-F0-9]{32}
+
+# Twitch Client ID
+(?i)twitch[_-]?client[_-]?id[\s:=]+[a-zA-Z0-9]{30}
+
+# Twitch Client Secret
+(?i)twitch[_-]?client[_-]?secret[\s:=]+[a-zA-Z0-9]{30}
+
+# Xbox Authentication Token
+(?i)xbox[_-]?auth[_-]?token[\s:=]+[a-zA-Z0-9\-_]{32,}
+
+# Sentry DSN (error tracking)
+https:\/\/[0-9a-f]{32}@sentry\.io\/[0-9]+
+
+# -------------------- AUTHORIZATION TOKENS --------------------
+
+# Authorization Bearer Token (JWT-like)
+(?i)bearer\s+[a-zA-Z0-9\-\._~\+\/]+=*
+
+# Basic Authorization Header
+(?i)authorization:\s*basic\s+[a-zA-Z0-9=:_\-\+\/]+
+
+# JWT Token
+eyJ[A-Za-z0-9-_=]+?\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*
+
+# OAuth Token
+(?i)oauth[_-]?token[\s:=]+[a-zA-Z0-9]{16,64}
+
+# -------------------- GENERIC API KEYS AND SECRETS --------------------
+
+# Generic API Key
+(?i)(api[_-]?key|apikey)[\s:=]+[a-zA-Z0-9-]{16,40}
+
+# Generic Secret
+(?i)(secret|secrettoken|s3cr3t)[\s:=]+[^\s'"]+
+
+# Generic Token
+(?i)(token|auth_token|access_token)[\s:=]+[a-zA-Z0-9\-_]{16,40}
+
+# Password (common variable names)
+(?i)(password|pass|pwd|passwd)[\s:=]+[^\s'"]+
+
+# Private RSA Key
+-----BEGIN RSA PRIVATE KEY-----[\s\S]*?-----END RSA PRIVATE KEY-----
+
+# SSH Private Key
+-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]*?-----END OPENSSH PRIVATE KEY-----
+
+# -------------------- DATABASE URI PATTERNS --------------------
+
+# MongoDB URI
+mongodb(\+srv)?:\/\/[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+@[a-zA-Z0-9_.-]+
+
+# MySQL URI
+mysql:\/\/[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+@[a-zA-Z0-9_.-]+
+
+# Postgres URI
+postgres:\/\/[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+@[a-zA-Z0-9_.-]+:[0-9]+\/[a-zA-Z0-9_-]+
+
+# -------------------- MISCELLANEOUS --------------------
+
+# Generic Base64 Encoded Secret
+(?i)[a-zA-Z0-9+/]{40,}={0,2}
+
+# API Key in URL
+(?i)(key|token)=([a-zA-Z0-9-]{16,40})
+
+# Private IPv4 Address (internal)
+(?:10|127|192\.168|172\.(?:1[6-9]|2\d|3[01]))(?:\.\d{1,3}){3}
