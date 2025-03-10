@@ -1,0 +1,9 @@
+(?i)apikey[\s:=]+[a-z0-9]{32}
+(?i)secret[\s:=]+[a-z0-9]{40}
+(?i)password[\s:=]+[^\s]+
+(?i)token[\s:=]+[a-z0-9\-_]{20,}
+(?i)aws_access_key_id[\s:=]+[A-Z0-9]{20}
+(?i)aws_secret_access_key[\s:=]+[A-Za-z0-9/+=]{40}
+(?i)db_password[\s:=]+[^\s]+
+(?i)passphrase[\s:=]+[^\s]+
+(?i)auth_token[\s:=]+[A-Za-z0-9\-_]+
